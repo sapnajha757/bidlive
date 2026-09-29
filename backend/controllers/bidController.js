@@ -37,6 +37,10 @@ const placeBid = async (req, res) => {
     const start = new Date(auction.startTime);
     const end = new Date(auction.endTime);
 
+    // Store pre-update state for rollback compensation if history creation fails
+    const previousBid = auction.currentBid || 0;
+    const previousWinner = auction.currentWinner || null;
+
     // 4. Server-side auction timing check
     if (now < start) {
       return res.status(400).json({ message: 'Auction has not started yet.' });
@@ -104,17 +108,44 @@ const placeBid = async (req, res) => {
       });
     }
 
-    // 7. Save Bid history record
-    const newBid = await Bid.create({
-      auctionId,
-      userId,
-      amount: numericAmount,
-      requestId: requestId || null,
-    });
+    // 7. Save Bid history record with automatic compensation if creation fails
+    let newBid;
+    try {
+      const bidPayload = {
+        auctionId,
+        userId,
+        amount: numericAmount,
+      };
+      if (requestId) {
+        bidPayload.requestId = requestId;
+      }
+      newBid = await Bid.create(bidPayload);
+    } catch (bidCreateError) {
+      // Revert Auction state if Bid history creation fails to maintain 100% database consistency
+      await Auction.findByIdAndUpdate(auctionId, {
+        $set: {
+          currentBid: previousBid,
+          currentWinner: previousWinner,
+        },
+      });
+
+      // Handle duplicate key error on requestId at the database index level
+      if (bidCreateError.code === 11000 && requestId) {
+        const existingBid = await Bid.findOne({ requestId });
+        if (existingBid) {
+          return res.status(200).json({
+            message: 'Request already processed',
+            bid: existingBid,
+          });
+        }
+      }
+
+      return res.status(500).json({ message: 'Failed to record bid history. Bid cancelled.' });
+    }
 
     const populatedBid = await Bid.findById(newBid._id).populate('userId', 'name email');
 
-    // 8. Emit Socket.IO real-time event AFTER database commit
+    // 8. Emit Socket.IO real-time event AFTER database commit & history creation
     const io = req.app.get('io');
     if (io) {
       const bidderName = req.user.name || (populatedBid.userId ? populatedBid.userId.name : 'Bidder');

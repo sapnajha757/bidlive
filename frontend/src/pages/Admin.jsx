@@ -97,6 +97,7 @@ export default function Admin() {
         imageUrl: formData.imageUrl,
         image: formData.imageUrl,
         startingBid: Number(formData.startingBid),
+        minimumIncrement: Number(formData.minIncrement || 100),
         minIncrement: Number(formData.minIncrement || 100),
         endTime: new Date(formData.endTime).toISOString(),
       };
@@ -139,7 +140,7 @@ export default function Admin() {
       description: auction.description || '',
       imageUrl: auction.imageUrl || auction.image || '',
       startingBid: auction.startingBid || '',
-      minIncrement: auction.minIncrement || '100',
+      minIncrement: auction.minimumIncrement !== undefined ? auction.minimumIncrement : (auction.minIncrement || '100'),
       endTime: auction.endTime ? new Date(auction.endTime).toISOString().slice(0, 16) : '',
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });

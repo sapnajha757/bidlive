@@ -102,6 +102,7 @@ export default function AuctionDetails({ user }) {
       
       const newAmount = newBidData.amount || newBidData.bidAmount;
       const bidder = newBidData.user || newBidData.bidderName || { name: newBidData.bidderName || 'Anonymous' };
+      const newBidId = newBidData._id || newBidData.id;
 
       // 4. Update highest current bid
       setAuction((prev) => {
@@ -113,8 +114,20 @@ export default function AuctionDetails({ user }) {
         };
       });
 
-      // 5. Update bid history list
-      setBids((prevBids) => [newBidData, ...prevBids]);
+      // 5. Update bid history list (deduplicate using unique bid ID / timestamp)
+      setBids((prevBids) => {
+        const isDuplicate = prevBids.some((b) => {
+          if (newBidId && (b._id || b.id)) {
+            return (b._id && (b._id === newBidId || b._id.toString() === newBidId.toString())) ||
+                   (b.id && (b.id === newBidId || b.id.toString() === newBidId.toString()));
+          }
+          const bUserId = b.user?._id || b.userId || (typeof b.user === 'string' ? b.user : null);
+          const newUserId = newBidData.user?._id || newBidData.userId || (typeof newBidData.user === 'string' ? newBidData.user : null);
+          return b.createdAt && newBidData.createdAt && b.createdAt === newBidData.createdAt && bUserId === newUserId;
+        });
+        if (isDuplicate) return prevBids;
+        return [newBidData, ...prevBids];
+      });
 
       setSuccessMessage(`New bid of ${formatCurrency(newAmount)} placed!`);
       setTimeout(() => setSuccessMessage(''), 4000);
@@ -184,7 +197,18 @@ export default function AuctionDetails({ user }) {
         highestBidder: { name: user?.name || user?.email || 'You' },
       }));
 
-      setBids((prev) => [placedBid, ...prev]);
+      setBids((prev) => {
+        const placedId = placedBid._id || placedBid.id;
+        const isDuplicate = prev.some((b) => {
+          if (placedId && (b._id || b.id)) {
+            return (b._id && (b._id === placedId || b._id.toString() === placedId.toString())) ||
+                   (b.id && (b.id === placedId || b.id.toString() === placedId.toString()));
+          }
+          return b.createdAt && placedBid.createdAt && b.createdAt === placedBid.createdAt;
+        });
+        if (isDuplicate) return prev;
+        return [placedBid, ...prev];
+      });
       setSuccessMessage(`Successfully placed bid of ${formatCurrency(amount)}!`);
       setTimeout(() => setSuccessMessage(''), 5000);
 
@@ -198,7 +222,7 @@ export default function AuctionDetails({ user }) {
   if (error || !auction) return <div className="max-w-4xl mx-auto p-4"><ErrorMessage message={error || 'Auction not found.'} onRetry={loadAuctionData} /></div>;
 
   const currentBid = auction.currentBid !== undefined ? auction.currentBid : (auction.startingBid || 0);
-  const minIncrement = auction.minIncrement || 100;
+  const minIncrement = auction.minimumIncrement !== undefined ? auction.minimumIncrement : (auction.minIncrement || 100);
   const isEnded = timeLeft === 'ENDED' || auction.status === 'ENDED';
   const winnerName = auction.highestBidder?.name || auction.winner?.name || (bids[0]?.user?.name || bids[0]?.bidderName) || 'No bids yet';
 

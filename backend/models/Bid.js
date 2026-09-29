@@ -19,8 +19,8 @@ const bidSchema = new mongoose.Schema(
     },
     requestId: {
       type: String,
-      default: null,
-      index: true,
+      sparse: true,
+      unique: true,
     },
   },
   { timestamps: true }

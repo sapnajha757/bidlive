@@ -21,7 +21,7 @@ export default function AuctionCard({ auction }) {
   const itemName = title || name || 'Auction Item';
   const displayImage = imageUrl || image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=60';
   const bidAmount = currentBid !== undefined ? currentBid : (startingBid || 0);
-  const increment = minIncrement || 100;
+  const increment = auction.minimumIncrement || auction.minIncrement || minIncrement || 100;
 
   // Format currency in INR (₹)
   const formatCurrency = (val) => {

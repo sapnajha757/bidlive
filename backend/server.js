@@ -61,8 +61,13 @@ const startServer = async () => {
         instance: { port: 27017, dbName: 'bidlive' },
       });
       await mongoose.connect('mongodb://127.0.0.1:27017/bidlive');
+      const Bid = require('./models/Bid');
+      await Bid.syncIndexes();
       console.log('✅ Connected to in-memory MongoDB instance successfully (bidlive database).');
     }
+
+    const Bid = require('./models/Bid');
+    await Bid.syncIndexes();
 
     server.listen(PORT, () => {
       console.log(`🚀 BidLive Server running on http://localhost:${PORT}`);

@@ -28,7 +28,8 @@ const seedDatabase = async () => {
       console.log('Connected to in-memory MongoDB server!');
     }
 
-    console.log('Clearing old data...');
+    console.log('Clearing old data and syncing indexes...');
+    await Bid.syncIndexes();
     await User.deleteMany({});
     await Item.deleteMany({});
     await Auction.deleteMany({});

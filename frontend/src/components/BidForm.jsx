@@ -8,6 +8,11 @@ export default function BidForm({ currentBid = 0, minIncrement = 100, onPlaceBid
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Sync bid input state when props change
+  React.useEffect(() => {
+    setBidAmount(currentBid + minIncrement);
+  }, [currentBid, minIncrement]);
+
   // Format currency
   const formatCurrency = (val) => {
     return new Intl.NumberFormat('en-IN', {
