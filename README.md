@@ -103,8 +103,33 @@ VITE_API_URL=http://localhost:5000
   node tests/concurrent-bids.js
   ```
 
+- **Run Comprehensive Edge Cases Test Suite**:
+  ```bash
+  cd backend
+  node tests/edge-cases-test.js
+  ```
+
 - **Run Frontend Build Check**:
   ```bash
   cd frontend
   npm run build
   ```
+
+---
+
+## Edge Cases and Error Handling
+
+| Edge Case | How BidLive Handles It | Validation or Test Performed | Current Status |
+| :--- | :--- | :--- | :--- |
+| **1. Multiple users bidding on same auction** | Handles sequential bids with real-time Socket.IO broadcasts and state updates. | Verified via `edge-cases-test.js` Case 1. | **PASS** |
+| **2. Multiple bids arriving simultaneously** | Uses atomic `findOneAndUpdate()` with `$expr` price conditions. 1 succeeds (HTTP 201), duplicate is rejected (HTTP 400). | Verified via `concurrent-bids.js` & `edge-cases-test.js` Case 2. | **PASS** |
+| **3. Bid lower than current highest bid** | Controller validates `numericAmount >= minRequiredBid` and returns HTTP 400 Bad Request. | Verified via `edge-cases-test.js` Case 3. | **PASS** |
+| **4. Attempting to bid after auction ended** | Checks `endTime <= now` in controller and `endTime: { $gt: now }` in DB query. Returns HTTP 400. | Verified via `edge-cases-test.js` Case 4. | **PASS** |
+| **5. Duplicate bid request (Same requestId)** | Sparse unique index on `requestId` in Mongoose. Returns HTTP 200 with cached bid payload. | Verified via `edge-cases-test.js` Case 5. | **PASS** |
+| **6. Multiple browser tabs open on same auction** | `AuctionDetails.jsx` socket listener deduplicates incoming `newBid` events using unique bid `_id`/`id`. | Verified via `edge-cases-test.js` Case 6. | **PASS** |
+| **7. Current bid changes while placing bid** | Atomic DB update condition fails for stale bid amount and returns HTTP 400 with updated price error. | Verified via `edge-cases-test.js` Case 7. | **PASS** |
+| **8. Multiple auctions ending simultaneously** | Socket.IO timer checks expired auctions independently and broadcasts isolated `auctionEnded` events per room. | Verified via `edge-cases-test.js` Case 8. | **PASS** |
+| **9. Invalid auction ID** | Try-catch handles invalid MongoDB ObjectIDs and missing records, returning HTTP 404 / 500 cleanly. | Verified via `edge-cases-test.js` Case 9. | **PASS** |
+| **10. Server or API failure during bidding** | `bidController.js` implements compensation rollback (`findByIdAndUpdate`) if `Bid` document creation fails after auction update. | Verified via `edge-cases-test.js` Case 10. | **PASS** |
+| **11. No active auctions available** | `GET /api/auctions` returns empty array `[]`. `Auctions.jsx` displays friendly empty state UI. | Verified via `edge-cases-test.js` Case 11. | **PASS** |
+
