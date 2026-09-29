@@ -50,13 +50,16 @@ const placeBid = async (req, res) => {
     }
 
     // 5. Calculate minimum valid bid amount
+    const hasBids = auction.currentWinner != null;
     const currentHighest = auction.currentBid || 0;
     const minIncrement = auction.minimumIncrement || 100;
-    const minRequiredBid = currentHighest > 0 ? currentHighest + minIncrement : auction.startingPrice;
+    const minRequiredBid = hasBids ? currentHighest + minIncrement : auction.startingPrice;
 
     if (numericAmount < minRequiredBid) {
       return res.status(400).json({
-        message: `Bid amount must be at least ₹${minRequiredBid} (Current bid ₹${currentHighest} + increment ₹${minIncrement}).`,
+        message: hasBids
+          ? `Bid amount must be at least ₹${minRequiredBid} (Current bid ₹${currentHighest} + increment ₹${minIncrement}).`
+          : `Bid amount must be at least ₹${minRequiredBid} (Starting price ₹${auction.startingPrice}).`,
       });
     }
 
@@ -68,17 +71,17 @@ const placeBid = async (req, res) => {
         startTime: { $lte: now },
         endTime: { $gt: now },
         $or: [
-          // Case 1: No bids placed yet (currentBid is 0 or un-set) -> bid must be >= startingPrice
+          // Case 1: No bids placed yet (currentWinner is null) -> bid must be >= startingPrice
           {
             $and: [
-              { $or: [{ currentBid: 0 }, { currentBid: { $exists: false } }] },
+              { $or: [{ currentWinner: null }, { currentWinner: { $exists: false } }] },
               { $expr: { $gte: [numericAmount, '$startingPrice'] } }
             ]
           },
-          // Case 2: Bids already exist (currentBid > 0) -> bid must be >= currentBid + minimumIncrement
+          // Case 2: Bids already exist (currentWinner is set) -> bid must be >= currentBid + minimumIncrement
           {
             $and: [
-              { currentBid: { $gt: 0 } },
+              { currentWinner: { $ne: null } },
               {
                 $expr: {
                   $gte: [

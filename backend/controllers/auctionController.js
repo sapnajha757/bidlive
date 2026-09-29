@@ -143,7 +143,13 @@ const updateAuction = async (req, res) => {
     if (description !== undefined) auction.description = description;
     if (imageUrl || image) auction.imageUrl = imageUrl || image;
     if (startingPrice !== undefined || startingBid !== undefined) {
-      auction.startingPrice = Number(startingPrice !== undefined ? startingPrice : startingBid);
+      const newPrice = Number(startingPrice !== undefined ? startingPrice : startingBid);
+      auction.startingPrice = newPrice;
+
+      // If no bids have been placed yet (currentWinner is null), sync currentBid to new startingPrice
+      if (!auction.currentWinner) {
+        auction.currentBid = newPrice;
+      }
     }
     if (minimumIncrement !== undefined) auction.minimumIncrement = Number(minimumIncrement);
     if (startTime) auction.startTime = new Date(startTime);

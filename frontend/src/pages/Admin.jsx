@@ -139,7 +139,7 @@ export default function Admin() {
       title: auction.title || auction.name || '',
       description: auction.description || '',
       imageUrl: auction.imageUrl || auction.image || '',
-      startingBid: auction.startingBid || '',
+      startingBid: auction.startingPrice !== undefined ? auction.startingPrice : (auction.startingBid || ''),
       minIncrement: auction.minimumIncrement !== undefined ? auction.minimumIncrement : (auction.minIncrement || '100'),
       endTime: auction.endTime ? new Date(auction.endTime).toISOString().slice(0, 16) : '',
     });
@@ -283,7 +283,8 @@ export default function Admin() {
             ) : (
               <div className="space-y-4">
                 {auctions.map((item) => {
-                  const current = item.currentBid !== undefined ? item.currentBid : item.startingBid;
+                  const startPrice = item.startingPrice !== undefined ? item.startingPrice : item.startingBid;
+                  const current = item.currentBid !== undefined ? item.currentBid : startPrice;
 
                   return (
                     <div
@@ -299,7 +300,7 @@ export default function Admin() {
                         <div>
                           <h4 className="font-bold text-gray-900 text-base">{item.title || item.name}</h4>
                           <div className="flex items-center space-x-3 text-xs text-gray-500 mt-1">
-                            <span>Start: {formatCurrency(item.startingBid)}</span>
+                            <span>Start: {formatCurrency(startPrice)}</span>
                             <span>•</span>
                             <span className="font-semibold text-indigo-600">Current: {formatCurrency(current)}</span>
                           </div>
