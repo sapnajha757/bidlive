@@ -4,7 +4,6 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const { Server } = require('socket.io');
-const { MongoMemoryServer } = require('mongodb-memory-server');
 
 // 1. Load Environment Variables
 dotenv.config();
@@ -82,6 +81,7 @@ const startServer = async () => {
       }
 
       console.log('⚠️ Local MongoDB service not found. Starting in-memory MongoDB server for development...');
+      const { MongoMemoryServer } = require('mongodb-memory-server');
       const mongoServer = await MongoMemoryServer.create({
         instance: { port: 27017, dbName: 'bidlive' },
       });
