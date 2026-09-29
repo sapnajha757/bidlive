@@ -1,0 +1,144 @@
+{
+  "timestamp": "2026-09-29T09:52:51.733Z",
+  "auctions": [
+    {
+      "_id": "6abb878dd91a8a2e916e19ec",
+      "itemId": "6abb878dd91a8a2e916e19eb",
+      "title": "Test Audit Item 1790674829194",
+      "description": "Test item for auditing starting bid edits",
+      "imageUrl": "",
+      "startingPrice": 2000,
+      "minimumIncrement": 500,
+      "currentBid": 5000,
+      "currentWinner": "6abb878dd91a8a2e916e19ed",
+      "startTime": "2026-09-29T09:39:29.194Z",
+      "endTime": "2026-09-29T10:40:29.194Z",
+      "status": "ACTIVE",
+      "createdAt": "2026-09-29T09:40:29.232Z",
+      "updatedAt": "2026-09-29T09:40:29.792Z",
+      "__v": 0
+    },
+    {
+      "_id": "6abb8908d91a8a2e916e19f2",
+      "itemId": "6abb8908d91a8a2e916e19f1",
+      "title": "Edge Case Active Auction 1790675208609",
+      "description": "Auction for edge case testing",
+      "imageUrl": "",
+      "startingPrice": 1000,
+      "minimumIncrement": 100,
+      "currentBid": 1600,
+      "currentWinner": "6abb8908d91a8a2e916e19ef",
+      "startTime": "2026-09-29T09:45:48.609Z",
+      "endTime": "2026-09-29T10:46:48.610Z",
+      "status": "ACTIVE",
+      "createdAt": "2026-09-29T09:46:48.639Z",
+      "updatedAt": "2026-09-29T09:46:49.547Z",
+      "__v": 0
+    },
+    {
+      "_id": "6abb8908d91a8a2e916e19f4",
+      "itemId": "6abb8908d91a8a2e916e19f3",
+      "title": "Edge Case Ended Auction 1790675208729",
+      "description": "Ended auction for edge case testing",
+      "imageUrl": "",
+      "startingPrice": 5000,
+      "minimumIncrement": 500,
+      "currentBid": 5000,
+      "currentWinner": null,
+      "startTime": "2026-09-29T07:46:48.729Z",
+      "endTime": "2026-09-29T08:46:48.729Z",
+      "status": "ENDED",
+      "createdAt": "2026-09-29T09:46:48.760Z",
+      "updatedAt": "2026-09-29T09:46:48.760Z",
+      "__v": 0
+    }
+  ],
+  "items": [
+    {
+      "_id": "6abb878dd91a8a2e916e19eb",
+      "name": "Test Audit Item 1790674829194",
+      "description": "Test item for auditing starting bid edits",
+      "image": "",
+      "createdAt": "2026-09-29T09:40:29.201Z",
+      "updatedAt": "2026-09-29T09:40:29.819Z",
+      "__v": 0
+    },
+    {
+      "_id": "6abb8908d91a8a2e916e19f1",
+      "name": "Edge Case Active Auction 1790675208609",
+      "description": "Auction for edge case testing",
+      "image": "",
+      "createdAt": "2026-09-29T09:46:48.612Z",
+      "updatedAt": "2026-09-29T09:46:48.612Z",
+      "__v": 0
+    },
+    {
+      "_id": "6abb8908d91a8a2e916e19f3",
+      "name": "Edge Case Ended Auction 1790675208729",
+      "description": "Ended auction for edge case testing",
+      "image": "",
+      "createdAt": "2026-09-29T09:46:48.731Z",
+      "updatedAt": "2026-09-29T09:46:48.731Z",
+      "__v": 0
+    }
+  ],
+  "bids": [
+    {
+      "_id": "6abb878dd91a8a2e916e19ee",
+      "auctionId": "6abb878dd91a8a2e916e19ec",
+      "userId": "6abb878dd91a8a2e916e19ed",
+      "amount": 5000,
+      "createdAt": "2026-09-29T09:40:29.672Z",
+      "updatedAt": "2026-09-29T09:40:29.672Z",
+      "__v": 0
+    },
+    {
+      "_id": "6abb8908d91a8a2e916e19f5",
+      "auctionId": "6abb8908d91a8a2e916e19f2",
+      "userId": "6abb8908d91a8a2e916e19ef",
+      "amount": 1000,
+      "createdAt": "2026-09-29T09:46:48.887Z",
+      "updatedAt": "2026-09-29T09:46:48.887Z",
+      "__v": 0
+    },
+    {
+      "_id": "6abb8909d91a8a2e916e19f6",
+      "auctionId": "6abb8908d91a8a2e916e19f2",
+      "userId": "6abb8908d91a8a2e916e19f0",
+      "amount": 1100,
+      "createdAt": "2026-09-29T09:46:49.021Z",
+      "updatedAt": "2026-09-29T09:46:49.021Z",
+      "__v": 0
+    },
+    {
+      "_id": "6abb8909d91a8a2e916e19f7",
+      "auctionId": "6abb8908d91a8a2e916e19f2",
+      "userId": "6abb8908d91a8a2e916e19ef",
+      "amount": 1200,
+      "requestId": "simul_A_1790675209113",
+      "createdAt": "2026-09-29T09:46:49.194Z",
+      "updatedAt": "2026-09-29T09:46:49.194Z",
+      "__v": 0
+    },
+    {
+      "_id": "6abb8909d91a8a2e916e19f8",
+      "auctionId": "6abb8908d91a8a2e916e19f2",
+      "userId": "6abb8908d91a8a2e916e19ef",
+      "amount": 1500,
+      "requestId": "unique_idempotent_req_1790675209326",
+      "createdAt": "2026-09-29T09:46:49.404Z",
+      "updatedAt": "2026-09-29T09:46:49.404Z",
+      "__v": 0
+    },
+    {
+      "_id": "6abb8909d91a8a2e916e19f9",
+      "auctionId": "6abb8908d91a8a2e916e19f2",
+      "userId": "6abb8908d91a8a2e916e19ef",
+      "amount": 1600,
+      "createdAt": "2026-09-29T09:46:49.575Z",
+      "updatedAt": "2026-09-29T09:46:49.575Z",
+      "__v": 0
+    }
+  ],
+  "users": []
+}

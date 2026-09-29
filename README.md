@@ -1,559 +1,483 @@
-# ⚡ BidLive — Real-Time Multi-Auction System
+# BidLive — Real-Time Multi-Auction System
 
-BidLive is a real-time multi-auction MERN stack application (MongoDB, Express, React, Node.js) paired with Socket.IO. It enables users to browse active auctions, place bids in real time with sub-second WebSocket updates, view bid history, and track won items. Administrators can create and update auction listings.
+BidLive is a MERN stack project I built to make online auctions more interactive and reliable. Users can explore different auctions, place bids, see updates in real time, check their bidding history, and view the auctions they have won. Admins can create auctions and manage their details through a dedicated admin panel.
 
-The application is engineered with atomic database operations to eliminate bid race conditions and enforce data integrity under concurrent high-volume traffic.
+While building BidLive, I focused on more than just making the interface work. I also worked on handling simultaneous bids, validating bid amounts on the server, preventing duplicate requests, and keeping auction data synchronized across connected users.
 
----
+## Live Demo
 
-## 🌐 Live Demo & Deployment Links
+- **Live Application:** https://bidlive-gamma.vercel.app
+- **Backend API:** https://bidlive-zkq0.onrender.com
+- **GitHub Repository:** https://github.com/sapnajha757/bidlive
 
-* **Live Frontend Web Application (Vercel):** `https://<your-app>.vercel.app` *(Example: `https://bidlive-gamma.vercel.app`)*
-* **Live Backend API & WebSocket Server (Render):** `https://<your-backend>.onrender.com` *(Example: `https://bidlive-zkq0.onrender.com`)*
-* **Database Cluster:** MongoDB Atlas Cloud Cluster
+## Features
 
----
+### For Users
+- Browse available, upcoming, and completed auctions.
+- View auction details, current bids, minimum increments, and remaining time.
+- Place bids on active auctions.
+- See new bids appear in real time without refreshing the page.
+- View personal bidding history and won auctions.
+- Register and log in securely.
 
-## ✨ Features
+### For Admins
+- Access a separate admin panel.
+- Create new auctions and manage existing ones.
+- Update auction details, including the starting price, minimum bid increment, description, image, and end time.
+- Make changes through the application interface instead of manually editing database records.
 
-### 👤 User Features
-* **User Authentication:** Secure signup and login with bcrypt password hashing and JWT Bearer token authentication.
-* **Live Auction Browsing:** Browse active, upcoming, and ended auctions with real-time countdown timers.
-* **Auction Details & History:** View item descriptions, starting prices, current high bids, minimum bid increments, and complete bid history logs.
-* **My Bids Dashboard:** Track active bids placed across all auctions (`/my-bids`).
-* **My Wins Dashboard:** View auctions won by the current user upon auction closure (`/my-wins`).
+### Reliability and Error Handling
+- Validate bids on the backend before accepting them.
+- Reject bids that are too low or arrive after an auction has ended.
+- Handle simultaneous bid requests using conditional database updates.
+- Prevent duplicate bid records when the same request is submitted again with the same request ID.
+- Send live updates through Socket.IO.
+- Handle invalid auction IDs, API errors, and empty auction lists.
 
-### ⚙️ Admin Features
-* **Role-Based Access Control:** Restricted endpoints enforced server-side via `adminMiddleware` (`role === 'admin'`).
-* **Create Auction Items:** Create new auction listings specifying item title, description, image URL, starting price, minimum increment, start time, and end time.
-* **Update Existing Auctions:** Modify item details, prices, and end times. Updating `startingPrice` on un-bid auctions dynamically syncs `currentBid`.
+## Tech Stack
 
-### 📡 Real-Time Features (Socket.IO)
-* **Sub-second Bid Synchronization:** Live bids are immediately broadcasted to all connected clients in the auction room (`auction:<auctionId>`) without requiring browser refreshes.
-* **Automated Auction End Events:** Background timer emits `auctionEnded` events when an auction reaches its `endTime`, crowning the leading bidder as winner in real time.
-* **Multi-Tab Sync:** Prevents double rendering across multiple browser tabs using unique bid document IDs (`_id`/`id`).
+| Part | Technologies | Why I Used Them |
+|---|---|---|
+| Frontend | React, Vite | To build a component-based interface and develop it quickly. |
+| Styling | Tailwind CSS | To style pages and maintain a consistent layout. |
+| Routing | React Router | To navigate between auctions, user pages, and the admin panel. |
+| Backend | Node.js, Express.js | To build the API and handle application logic. |
+| Database | MongoDB, Mongoose | To store users, auctions, and bidding history. |
+| Real-time communication | Socket.IO | To notify connected users when bids change or auctions end. |
+| Authentication | JWT, bcrypt | To authenticate users and securely hash passwords. |
+| Configuration | dotenv, CORS | To manage environment variables and allow frontend-backend communication. |
+| Deployment | Vercel, Render, MongoDB Atlas | To host the frontend, backend, and cloud database separately. |
 
-### 🔒 Concurrency & Data Integrity
-* **Atomic DB Concurrency:** Uses MongoDB `findOneAndUpdate()` with `$expr` query conditions to guarantee atomicity during simultaneous bid attempts.
-* **Idempotency Protection:** Enforces a unique, sparse index on `requestId` in the `Bid` schema to prevent network retries or double-clicks from creating duplicate bid records.
-* **State Compensation Rollback:** Implements conditional rollback handling if bid history creation fails following an auction update.
+## How the Application Works
 
----
+BidLive follows a client-server architecture. The frontend handles the user interface, while the backend validates requests and manages the auction logic. MongoDB stores the application data, and Socket.IO keeps connected clients updated.
 
-## 🏗️ Technical Architecture
+1. A user opens BidLive and browses the available auctions.
+2. The frontend requests auction data from the Express API.
+3. The backend retrieves the required records from MongoDB and returns them to the frontend.
+4. When a user submits a bid, the backend checks authentication, the auction's status, the bid amount, and the current auction price.
+5. If the bid is valid, the backend updates the auction and records the bid.
+6. The server broadcasts a Socket.IO event to users connected to that auction.
+7. The frontend updates the displayed price and bid history.
 
-### Architecture Diagram
+This approach keeps the main bidding rules on the server instead of relying on values submitted by the browser.
 
-```mermaid
-flowchart TD
-    subgraph Client ["Client Layer (Browser)"]
-        UI["React 19 Frontend (Vite + Tailwind CSS)"]
-        SocketClient["Socket.IO Client"]
-    end
+## Technical Approach
 
-    subgraph Server ["Backend Layer (Node.js + Express)"]
-        Router["Express REST API Router"]
-        AuthMid["Auth & Admin Middleware (JWT)"]
-        Controllers["Controllers (bidController, auctionController)"]
-        SocketServer["Socket.IO Server (Rooms per Auction)"]
-        Timer["Background Timer (Interval Check)"]
-    end
+### 1. Handling Simultaneous Bids
 
-    subgraph Database ["Persistence Layer"]
-        MongoDB[("MongoDB / Atlas Database")]
-    end
+One of the main challenges in an auction system is handling two users who try to place a bid at almost the same time.
 
-    UI -->|HTTP Requests / Bearer Token| Router
-    Router --> AuthMid
-    AuthMid --> Controllers
-    Controllers -->|Atomic findOneAndUpdate / Queries| MongoDB
-    Controllers -->|Emit newBid Event| SocketServer
-    SocketServer <-->|Bi-directional WebSocket Broadcast| SocketClient
-    Timer -->|Check Expired & Emit auctionEnded| SocketServer
-    Timer -->|Set status = ENDED| MongoDB
-```
+For example, suppose the current bid is ₹5,000 and the minimum increment is ₹500. Two users might submit a bid of ₹5,500 simultaneously. If the backend simply reads the current price and updates it later, both requests could incorrectly pass the initial check.
 
-### System Layer Description
-1. **Client Layer (React 19 + Vite):** Handles UI rendering, user interactions, optimistic state updates, and real-time WebSocket room subscriptions (`auction:<auctionId>`).
-2. **REST API & Middleware Layer (Express 5):** Validates incoming requests, parses JSON payloads, verifies JWT Bearer tokens, and enforces role-based authorization.
-3. **Real-Time Engine (Socket.IO 4):** Manages room joins (`joinAuction`/`joinRoom`) and broadcasts real-time events (`newBid`, `auctionEnded`).
-4. **Database & Persistence Layer (MongoDB / Mongoose 9):** Persists application state. Uses atomic query expressions for concurrency control and sparse unique indexes for idempotency.
+To reduce this risk, BidLive uses a conditional MongoDB `findOneAndUpdate()` operation. The update checks the auction's current state and bid conditions before accepting a change.
 
-### Project Directory Structure
+The first valid request updates the auction. A competing request based on the old price fails the database condition and is rejected.
 
-```
+This makes the auction update atomic at the single-document level. It does not mean that every operation across multiple collections is automatically transactional.
+
+### 2. Starting Price and Minimum Bid Increment
+
+The starting price determines the minimum price for the first bid when no bids have been placed. After bidding begins, the next valid bid must meet the current bid plus the minimum increment.
+
+For example:
+
+- Starting price: ₹5,000
+- Minimum increment: ₹500
+- First bid: ₹5,000, if the auction has no bids and the application permits bidding at the starting price.
+- If the current bid becomes ₹5,000, the next bid must be at least ₹5,500.
+
+When an admin reduces the starting price before any bids have been placed, the backend also updates the current bid to match it. Once bidding has started, editing the starting price does not overwrite the existing highest bid.
+
+### 3. Real-Time Updates with Socket.IO
+
+Refreshing a page after every bid would make the experience slower and less convenient.
+
+BidLive uses Socket.IO rooms to send updates to users viewing the same auction. The server broadcasts events such as `newBid` and `auctionEnded` to the relevant auction room.
+
+The frontend listens for these events and updates the interface. It also uses bid IDs to avoid displaying the same bid more than once when duplicate events are received.
+
+### 4. Duplicate Request Protection
+
+A network issue or repeated click can cause the same bid request to reach the backend multiple times.
+
+BidLive uses a request ID to recognize repeated requests and a MongoDB unique index as an additional safeguard against duplicate records. The backend can return the previously created bid for a recognized retry rather than creating another record.
+
+### 5. Authentication and Admin Access
+
+Users authenticate through the login API and receive a JWT. Protected routes use authentication middleware to identify the logged-in user.
+
+Admin-only operations, such as creating and editing auctions, also check the user's role on the backend. Hiding an admin link in the frontend is not enough by itself, so authorization is enforced by the API as well.
+
+Passwords are hashed using bcrypt instead of being stored as plain text.
+
+## Project Structure
+
+The project is divided into two main folders:
+
+```text
 bidlive/
-├── backend/                # Express.js & Socket.IO server
-│   ├── controllers/        # Controllers (authController, auctionController, bidController)
-│   ├── middleware/         # Auth & Admin JWT middlewares
-│   ├── models/             # Mongoose Schemas (User, Item, Auction, Bid)
-│   ├── routes/             # Express API routes
-│   ├── socket/             # Socket.IO connection & timer handlers
-│   ├── tests/              # Automated test scripts (concurrent-bids.js, edge-cases-test.js)
-│   ├── seed.js             # Database seeding script
-│   └── server.js           # Main application entry point
-├── frontend/               # React 19 + Vite frontend
-│   ├── src/                # Components, Pages, Services (api.js)
-│   ├── package.json        # Frontend dependencies
-│   └── vercel.json         # Vercel SPA routing rewrites
-├── PRD.md                  # Product Requirements Document
-├── setup.md                # Setup & developer guide
-└── README.md               # System documentation
+├── backend/
+│   ├── controllers/
+│   ├── models/
+│   ├── routes/
+│   ├── tests/
+│   ├── server.js
+│   ├── seed.js
+│   └── .env.example
+│
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   └── ...
+│   ├── .env.example
+│   └── package.json
+│
+├── README.md
+├── PRD.md
+└── setup.md
 ```
 
----
+The backend contains the API routes, controllers, database models, real-time communication, and test scripts. The frontend contains the pages and reusable components used by users and admins.
 
-## 🛠️ Technical Approach & Lifecycle Execution
+## API Overview
 
-### 1. Step-by-Step Bid Execution Flow
-When a user clicks "Place Bid":
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/api/auth/register` | Register a new account. |
+| POST | `/api/auth/login` | Log in and receive a JWT. |
+| GET | `/api/auctions` | Retrieve auction listings. |
+| GET | `/api/auctions/:id` | Retrieve a particular auction. |
+| POST | `/api/auctions` | Create an auction (admin only). |
+| PUT | `/api/auctions/:id` | Update an auction (admin only). |
+| POST | `/api/auctions/:id/bids` | Submit a bid (authenticated users). |
+| GET | `/api/auctions/:id/bids` | Retrieve an auction's bid history. |
+| GET | `/api/users/me/bids` | View the logged-in user's bids. |
+| GET | `/api/users/me/wins` | View auctions won by the logged-in user. |
 
-```
-[ Client ] ──(POST /api/auctions/:id/bids + Token + requestId)──> [ Express Router ]
-                                                                        │
-[ Client UI Updates ] <──(Emit 'newBid')── [ Socket.IO ] <── [ Atomic findOneAndUpdate ]
-```
+## Edge Cases and Error Handling
 
-1. **Client Request:** The client sends an HTTP `POST` to `/api/auctions/:auctionId/bids` with the bid `amount`, optional client-generated `requestId`, and `Authorization: Bearer <token>` header.
-2. **JWT Authorization:** `authMiddleware` verifies the JWT token, extracts user identity (`req.user.id`), and attaches it to the request object.
-3. **ObjectId & Amount Validation:** `bidController.js` validates that `auctionId` is a valid 24-char hex MongoDB `ObjectId` and `amount` is a positive number.
-4. **Idempotency Check:** If `requestId` is present, `bidController.js` queries `Bid.findOne({ requestId, auctionId, userId })`. If found, it immediately returns the existing bid payload (**HTTP 200 OK**).
-5. **Server-Side Timing & Status Check:** The controller fetches the auction and verifies server time: `now >= startTime` and `now < endTime`.
-6. **Minimum Bid Calculation:**
-   - If no bids exist yet (`currentWinner == null`), minimum required bid is `startingPrice`.
-   - If bids already exist (`currentWinner != null`), minimum required bid is `currentBid + minimumIncrement`.
-7. **Atomic DB Concurrency Update:**
-   The backend executes an atomic `Auction.findOneAndUpdate()` with an `$expr` query condition:
-   ```javascript
-   Auction.findOneAndUpdate(
-     {
-       _id: auctionId,
-       startTime: { $lte: now },
-       endTime: { $gt: now },
-       $or: [
-         {
-           $and: [
-             { $or: [{ currentWinner: null }, { currentWinner: { $exists: false } }] },
-             { $expr: { $gte: [numericAmount, '$startingPrice'] } }
-           ]
-         },
-         {
-           $and: [
-             { currentWinner: { $ne: null } },
-             {
-               $expr: {
-                 $gte: [
-                   numericAmount,
-                   { $add: ['$currentBid', { $ifNull: ['$minimumIncrement', minIncrement] }] }
-                 ]
-               }
-             }
-           ]
-         }
-       ]
-     },
-     { $set: { currentBid: numericAmount, currentWinner: userId, status: 'ACTIVE' } },
-     { new: true }
-   );
-   ```
-8. **Bid History Record & Rollback:**
-   Upon successful auction update, `Bid.create({ auctionId, userId, amount, requestId })` is called. If `Bid.create()` fails, a conditional rollback (`Auction.findOneAndUpdate({ _id: auctionId, currentBid: numericAmount, currentWinner: userId }, { $set: { currentBid: previousBid, currentWinner: previousWinner } })`) reverts the auction state if no subsequent bid has advanced it.
-9. **Socket.IO Real-Time Broadcast:**
-   `io.to('auction:' + auctionId).emit('newBid', { auctionId, amount, user, bidderName, createdAt })` broadcasts the new bid to all connected clients in the auction room.
-10. **Client UI State Update:**
-    Clients in the room receive the `newBid` event. `AuctionDetails.jsx` checks unique bid `_id`/`id` to prevent double-rendering and updates the highest bid UI state.
+During development, I considered the following situations because they can affect the reliability of an auction application.
 
-### 2. Auction End & Winner Selection Logic
-* **Server-Authoritative Status (`calculateStatus`):** The server dynamically computes status based on server system time:
-  - `now < startTime` $\rightarrow$ `UPCOMING`
-  - `now >= startTime` and `now < endTime` $\rightarrow$ `ACTIVE`
-  - `now >= endTime` $\rightarrow$ `ENDED`
-* **Background Expiration Job:** `socket/socket.js` runs an interval timer every 10 seconds. It queries `Auction.find({ endTime: { $lte: now }, status: { $ne: 'ENDED' } })`, updates `status = 'ENDED'`, and emits `auctionEnded` to room `auction:<auctionId>` with winner details (`currentWinner`).
+| Scenario | How BidLive Handles It |
+|---|---|
+| Multiple users bid on the same auction. | Validates and updates bids on the backend and broadcasts accepted changes. |
+| Two bids arrive simultaneously. | Uses a conditional atomic database update to prevent both requests from accepting the same stale price. |
+| A user submits a bid below the required amount. | Rejects the bid with an appropriate API error. |
+| A user bids after an auction ends. | Checks the end time in the controller and the database update condition. |
+| The same bid request is repeated. | Uses request IDs and a unique database index to help prevent duplicate records. |
+| The same auction is open in multiple tabs. | Uses Socket.IO updates and bid-ID deduplication to keep the displayed history consistent. |
+| The current bid changes while another bid is being submitted. | Rejects a request that no longer satisfies the current database conditions. |
+| Several auctions end at the same time. | Processes expired auctions independently and emits events to their respective rooms. |
+| An invalid auction ID is submitted. | Returns an error response instead of treating the request as a valid auction. |
+| An error occurs while recording a bid. | Uses compensating logic to attempt to restore the previous auction state if bid creation fails. |
+| No auctions are available. | Returns an empty list and displays a friendly empty state in the frontend. |
+| The server or API becomes unavailable or returns an unexpected error. | Returns an appropriate error response where possible, and the frontend should show a clear error message instead of silently failing. |
+The error-handling approach covers the expected cases, but recovery from a failure across multiple database operations is not equivalent to a full ACID transaction.
 
----
+## Running the Project Locally
 
-## 🗄️ Database & Schema Design
+### Prerequisites
 
-### Collections Overview
+- Node.js 18 or a compatible newer version.
+- npm.
+- MongoDB Atlas or a running local MongoDB instance.
 
-```
- ┌─────────────┐       1:1       ┌─────────────┐
- │    User     │ ───────────────> │   Auction   │
- └─────────────┘                 └─────────────┘
-        │                               │
-        │ 1:N                           │ 1:N
-        v                               v
- ┌─────────────┐                 ┌─────────────┐
- │     Bid     │ <────────────── │    Item     │
- └─────────────┘                 └─────────────┘
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/sapnajha757/bidlive.git
+cd bidlive
 ```
 
-#### 1. `users` Collection (`models/User.js`)
-| Field | Type | Attributes / Index | Description |
-|---|---|---|---|
-| `_id` | ObjectId | Primary Key | Auto-generated user ID |
-| `name` | String | Required, Trimmed | Full name of user |
-| `email` | String | Required, Unique, Lowercase, Trimmed | Account email address |
-| `password` | String | Required | Bcrypt hashed password (salt factor 10) |
-| `role` | String | Enum: `['user', 'admin']`, Default: `'user'` | Role-based authorization flag |
-| `createdAt` | Date | Timestamps | Document creation timestamp |
-| `updatedAt` | Date | Timestamps | Document last update timestamp |
+### 2. Set Up the Backend
 
-#### 2. `items` Collection (`models/Item.js`)
-| Field | Type | Attributes | Description |
-|---|---|---|---|
-| `_id` | ObjectId | Primary Key | Auto-generated item ID |
-| `name` | String | Required, Trimmed | Name of auction item |
-| `description` | String | Default: `''` | Detailed item specifications |
-| `image` | String | Default: `''` | Item image URL |
+```bash
+cd backend
+npm install
+```
 
-#### 3. `auctions` Collection (`models/Auction.js`)
-| Field | Type | Attributes / Index | Description |
-|---|---|---|---|
-| `_id` | ObjectId | Primary Key | Auto-generated auction ID |
-| `itemId` | ObjectId | Ref: `'Item'` | Reference to associated Item document |
-| `title` | String | Trimmed | Auction title |
-| `description` | String | Default: `''` | Auction description |
-| `imageUrl` | String | Default: `''` | Media image URL |
-| `startingPrice` | Number | Required, Min: 0 | Initial base price |
-| `minimumIncrement` | Number | Default: 100, Min: 1 | Minimum bid increment |
-| `currentBid` | Number | Default: 0 | Current highest bid amount |
-| `currentWinner` | ObjectId | Ref: `'User'`, Default: `null` | Current leading high bidder |
-| `startTime` | Date | Required | Auction start timestamp |
-| `endTime` | Date | Required | Auction end timestamp |
-| `status` | String | Enum: `['UPCOMING', 'ACTIVE', 'ENDED']` | Calculated status |
+Create a `.env` file based on `.env.example` and configure the required values:
 
-#### 4. `bids` Collection (`models/Bid.js`)
-| Field | Type | Attributes / Index | Description |
-|---|---|---|---|
-| `_id` | ObjectId | Primary Key | Auto-generated bid ID |
-| `auctionId` | ObjectId | Ref: `'Auction'`, Required | Reference to targeted auction |
-| `userId` | ObjectId | Ref: `'User'`, Required | Reference to bidding user |
-| `amount` | Number | Required | Bid numerical amount |
-| `requestId` | String | **Unique, Sparse Index** | Client idempotency identifier |
-| `createdAt` | Date | Timestamps | Bid submission timestamp |
-
----
-
-## 📡 API Documentation
-
-### 1. Register User
-* **Endpoint:** `POST /api/auth/register`
-* **Access:** Public
-* **Headers:** `Content-Type: application/json`
-* **Request Body:**
-  ```json
-  {
-    "name": "Jane Doe",
-    "email": "jane@example.com",
-    "password": "securepassword123"
-  }
-  ```
-* **Success Response (HTTP 201 Created):**
-  ```json
-  {
-    "message": "User registered successfully",
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "user": {
-      "id": "6741b2c4e3b0c44298fc1c14",
-      "name": "Jane Doe",
-      "email": "jane@example.com",
-      "role": "user"
-    }
-  }
-  ```
-* **Error Response (HTTP 400 Bad Request):**
-  ```json
-  { "message": "User with this email already exists." }
-  ```
-
-### 2. Login User
-* **Endpoint:** `POST /api/auth/login`
-* **Access:** Public
-* **Headers:** `Content-Type: application/json`
-* **Request Body:**
-  ```json
-  {
-    "email": "jane@example.com",
-    "password": "securepassword123"
-  }
-  ```
-* **Success Response (HTTP 200 OK):**
-  ```json
-  {
-    "message": "Login successful",
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "user": {
-      "id": "6741b2c4e3b0c44298fc1c14",
-      "name": "Jane Doe",
-      "email": "jane@example.com",
-      "role": "user"
-    }
-  }
-  ```
-* **Error Response (HTTP 401 Unauthorized):**
-  ```json
-  { "message": "Invalid email or password." }
-  ```
-
-### 3. List All Auctions
-* **Endpoint:** `GET /api/auctions`
-* **Access:** Public
-* **Success Response (HTTP 200 OK):**
-  ```json
-  [
-    {
-      "_id": "6abb768646a4fa97bfa14260",
-      "title": "iPhone 15 Pro Max - 256GB",
-      "startingPrice": 40000,
-      "minimumIncrement": 1000,
-      "currentBid": 53000,
-      "currentWinner": { "_id": "6741b2...", "name": "Bidder User 1" },
-      "status": "ACTIVE",
-      "startTime": "2026-09-29T10:00:00.000Z",
-      "endTime": "2026-09-30T10:00:00.000Z"
-    }
-  ]
-  ```
-
-### 4. Create Auction Item (Admin Only)
-* **Endpoint:** `POST /api/auctions`
-* **Access:** Admin (`Authorization: Bearer <admin_token>`)
-* **Headers:** `Content-Type: application/json`
-* **Request Body:**
-  ```json
-  {
-    "title": "MacBook Pro 14\" M3",
-    "description": "Space Black, 16GB RAM, 512GB SSD",
-    "imageUrl": "https://example.com/macbook.jpg",
-    "startingPrice": 100000,
-    "minimumIncrement": 2000,
-    "startTime": "2026-09-29T12:00:00.000Z",
-    "endTime": "2026-10-01T12:00:00.000Z"
-  }
-  ```
-* **Success Response (HTTP 201 Created):**
-  ```json
-  {
-    "message": "Auction created successfully",
-    "auction": { "_id": "6abb...", "title": "MacBook Pro 14\" M3", "status": "ACTIVE" }
-  }
-  ```
-* **Error Response (HTTP 403 Forbidden):**
-  ```json
-  { "message": "Access denied. Admin rights required." }
-  ```
-
-### 5. Place Bid on Auction
-* **Endpoint:** `POST /api/auctions/:auctionId/bids`
-* **Access:** Authenticated User (`Authorization: Bearer <user_token>`)
-* **Headers:** `Content-Type: application/json`
-* **Request Body:**
-  ```json
-  {
-    "amount": 54000,
-    "requestId": "unique_req_uuid_12345"
-  }
-  ```
-* **Success Response (HTTP 201 Created):**
-  ```json
-  {
-    "message": "Bid placed successfully!",
-    "bid": {
-      "_id": "6abb...",
-      "auctionId": "6abb768646a4fa97bfa14260",
-      "amount": 54000,
-      "requestId": "unique_req_uuid_12345",
-      "userId": { "name": "Jane Doe", "email": "jane@example.com" }
-    }
-  }
-  ```
-* **Error Response (HTTP 400 Bad Request):**
-  ```json
-  { "message": "Bid rejected. A higher bid was placed or auction status changed." }
-  ```
-* **Invalid ID Format Error (HTTP 400 Bad Request):**
-  ```json
-  { "message": "Invalid auction ID format." }
-  ```
-
----
-
-## ⚙️ Environment Variables
-
-> **Notice:** Never commit real secrets or credentials to source control repositories.
-
-### Backend (`backend/.env`)
 ```env
 PORT=5000
-MONGO_URI=mongodb://127.0.0.1:27017/bidlive
-# For MongoDB Atlas Cloud Cluster:
-# MONGO_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/bidlive?retryWrites=true&w=majority
-JWT_SECRET=your_jwt_secret_key_here
+MONGO_URI=your_mongodb_connection_string
+JWT_SECRET=your_private_jwt_secret
 CLIENT_URL=http://localhost:5173
 NODE_ENV=development
 ```
 
-### Frontend (`frontend/.env`)
+Use your own database credentials and a strong private JWT secret. Do not commit the `.env` file to GitHub.
+
+If you want to populate a fresh development database with sample data, run:
+
+```bash
+node seed.js
+```
+
+Then start the backend:
+
+```bash
+node server.js
+```
+
+The API should be available at `http://localhost:5000`.
+
+### 3. Set Up the Frontend
+
+Open another terminal:
+
+```bash
+cd frontend
+npm install
+```
+
+Create the frontend `.env` file:
+
 ```env
 VITE_API_URL=http://localhost:5000
 ```
 
----
+Start the development server:
 
-## 💡 Important Technical Decisions & Architecture Trade-offs
-
-1. **Why MongoDB?**
-   - Flexible document model suits nested auction items and populated references (`populate('itemId')`).
-   - Supports query-level expression evaluation (`$expr`) required for atomic single-document updates.
-2. **Why Socket.IO instead of polling?**
-   - Polling generates excessive HTTP overhead under high user concurrency. Socket.IO room subscriptions (`auction:<auctionId>`) provide sub-100ms real-time broadcasts only to users actively viewing a specific item.
-3. **Why Atomic `findOneAndUpdate` instead of locks?**
-   - Explicit row locks (or Redis distributed locks) introduce locking latency, deadlock risks, and infrastructure complexity. MongoDB's single-document atomic update semantics execute at the database level without external locking overhead.
-4. **Why JWT Authentication?**
-   - Stateless JWT tokens eliminate server-side session storage bottlenecks, making backend scaling across container environments straightforward.
-
----
-
-## ⚡ How Simultaneous Bids Are Handled
-
-### The Race Condition Problem
-When two bidders submit identical bid amounts (e.g. ₹50,000) at the exact same millisecond:
-- In standard read-then-write logic, both requests see current bid as ₹45,000, validate ₹50,000 as valid, and both update the database.
-- Result: Overwritten state and duplicate high bids.
-
-### The Solution: Atomic `$expr` Query Condition
-BidLive executes the update atomically inside the database engine:
-```javascript
-Auction.findOneAndUpdate(
-  {
-    _id: auctionId,
-    startTime: { $lte: now },
-    endTime: { $gt: now },
-    $or: [
-      {
-        $and: [
-          { $or: [{ currentWinner: null }, { currentWinner: { $exists: false } }] },
-          { $expr: { $gte: [numericAmount, '$startingPrice'] } }
-        ]
-      },
-      {
-        $and: [
-          { currentWinner: { $ne: null } },
-          {
-            $expr: {
-              $gte: [
-                numericAmount,
-                { $add: ['$currentBid', { $ifNull: ['$minimumIncrement', minIncrement] }] }
-              ]
-            }
-          }
-        ]
-      }
-    ]
-  },
-  { $set: { currentBid: numericAmount, currentWinner: userId } },
-  { new: true }
-);
+```bash
+npm run dev
 ```
 
-### Outcome for Simultaneous Requests
-- **Winning Request:** The database engine processes the first update, setting `currentBid = 50000`. Returns the updated document (HTTP 201 Created).
-- **Losing Request:** The second update evaluates `$expr: { $gte: [50000, 50000 + 1000] }` which returns `false`. `findOneAndUpdate` returns `null`. The controller catches this and returns **HTTP 400 Bad Request** (*"Bid rejected. A higher bid was me..."*).
+Open `http://localhost:5173` in your browser.
 
-### Honest Crash Analysis of Rollback Logic
-`bidController.js` executes an atomic conditional rollback if `Bid.create()` fails after `findOneAndUpdate()` succeeds:
-```javascript
-await Auction.findOneAndUpdate(
-  { _id: auctionId, currentBid: numericAmount, currentWinner: userId },
-  { $set: { currentBid: previousBid, currentWinner: previousWinner } }
-);
-```
-- **If `Bid.create()` fails due to DB validation/duplicate index:** The conditional rollback safely restores the previous auction state if no newer bid has advanced it.
-- **Hard Process Crash Limitation:** If the Node.js server process physically crashes or loses power at the *exact millisecond* between `Auction.findOneAndUpdate()` and `Bid.create()`, the auction `currentBid` will remain updated without a corresponding `Bid` document unless MongoDB multi-document ACID transactions with replica sets are enabled.
+For additional setup details, see [`setup.md`](setup.md).
 
----
+## Testing
 
-## 🧪 Testing Commands & Results
+The project includes scripts for checking important bidding scenarios and the frontend production build.
 
-### 1. Run Atomic Concurrency Test
-Verifies simultaneous identical bids on the same auction:
+**Concurrent bidding test**
+
 ```bash
 cd backend
 node tests/concurrent-bids.js
 ```
-*Sample Output:*
-```text
-⚡ Starting Concurrent Bidding Test...
-Step 1: Logging in Bidder A and Bidder B...
-Step 2: Fetching active auction...
-Targeting Auction: "Apple Watch Ultra 2"
-Current Bid: ₹68000 | Min Increment: ₹1000
-Step 3: Launching SIMULTANEOUS concurrent bids of ₹69000...
-================ TEST RESULTS ================
-✅ SUCCESS: Bidder A's bid was ACCEPTED (Status 201)
-❌ REJECTED: Bidder B's bid was REJECTED (Status 400)
-==============================================
-🎉 Concurrency test completed! MongoDB atomic findOneAndUpdate correctly allowed only 1 winner.
-```
 
-### 2. Run Comprehensive 11 Edge Cases Suite
-Verifies all assignment-required edge cases:
+**Edge-case test suite**
+
 ```bash
 cd backend
 node tests/edge-cases-test.js
 ```
 
-### 3. Run Production Frontend Build Check
-Verifies JSX syntax and production bundling:
+**Starting price edit test**
+
+```bash
+cd backend
+node tests/test-starting-bid.js
+```
+
+**Frontend build check**
+
 ```bash
 cd frontend
 npm run build
 ```
 
+The test scripts are intended to verify bidding validation, simultaneous requests, repeated requests, auction timing, and starting-price updates. Run them against a configured test database and verify the results in the terminal. Avoid running destructive test scripts against production data.
+
+## Database and Data Persistence
+
+BidLive uses MongoDB to store auction details, user accounts, and bid history.
+
+The deployed application is configured to use MongoDB Atlas so its data is stored separately from the application server. In local development, use either a local MongoDB service or the database configuration supported by the current backend code.
+
+An in-memory database, if enabled for a development or test environment, is temporary: its contents are lost when the process stops. It should not be used as the production database.
+
+## Deployment
+
+The application is split across three services:
+
+- **Vercel:** Hosts the React frontend.
+- **Render:** Runs the Node.js and Express backend, including the Socket.IO server.
+- **MongoDB Atlas:** Stores persistent application data.
+
+The frontend uses `VITE_API_URL` to communicate with the deployed backend. The backend uses environment variables such as `MONGO_URI`, `JWT_SECRET`, and `CLIENT_URL` to configure its database connection, authentication, and allowed frontend origin.
+
+## Current Limitations and Future Improvements
+
+There are a few areas I would improve before using BidLive for a larger production workload:
+
+- **Multi-instance real-time communication:** A Redis adapter or another shared messaging solution would be needed to coordinate Socket.IO events across multiple backend instances.
+- **Transactional consistency:** A MongoDB transaction on a supported replica set would provide stronger consistency when updating an auction and creating its corresponding bid record together.
+- **Automated testing:** Expand the automated tests to cover more failure scenarios, authentication cases, and production-like concurrent workloads.
+- **Deployment monitoring:** Add structured logging, monitoring, and clearer operational alerts.
+- **Auction scheduling:** Improve scheduling and recovery so auction-ending behavior remains reliable during restarts or temporary service interruptions.
+- **Production security:** Review rate limiting, input validation, secret rotation, and administrative access before a public production launch.
+
+## What I Learned
+
+Building BidLive helped me understand that a real-time application needs more than a frontend, an API, and a database. The difficult part is making sure that the data remains correct when multiple users interact with the system at the same time.
+
+Working on atomic updates, bid validation, Socket.IO, authentication, admin permissions, and edge-case testing gave me practical experience with the kinds of problems that appear in multi-user applications.
+
+The project is a working foundation that I can continue improving as I learn more about distributed systems, database transactions, testing, and production deployment.
+
 ---
 
-## Edge Cases and Error Handling
+## Technical Architecture
 
-| Edge Case | How BidLive Handles It | Validation or Test Performed | Current Status |
-| :--- | :--- | :--- | :--- |
-| **1. Multiple users bidding on same auction** | Handles sequential bids with real-time Socket.IO broadcasts and state updates. | Verified via `edge-cases-test.js` Case 1. | **PASS** |
-| **2. Multiple bids arriving simultaneously** | Uses atomic `findOneAndUpdate()` with `$expr` price conditions. 1 succeeds (HTTP 201), duplicate is rejected (HTTP 400). | Verified via `concurrent-bids.js` & `edge-cases-test.js` Case 2. | **PASS** |
-| **3. Bid lower than current highest bid** | Controller validates `numericAmount >= minRequiredBid` and returns HTTP 400 Bad Request. | Verified via `edge-cases-test.js` Case 3. | **PASS** |
-| **4. Attempting to bid after auction ended** | Checks `endTime <= now` in controller and `endTime: { $gt: now }` in DB query. Returns HTTP 400. | Verified via `edge-cases-test.js` Case 4. | **PASS** |
-| **5. Duplicate bid request (Same requestId)** | Scopes `requestId` check to user & auction with sparse unique index. Returns HTTP 200 with cached payload. | Verified via `edge-cases-test.js` Case 5. | **PASS** |
-| **6. Multiple browser tabs open on same auction** | `AuctionDetails.jsx` socket listener deduplicates incoming `newBid` events using unique bid `_id`/`id`. | Verified via `edge-cases-test.js` Case 6. | **PASS** |
-| **7. Current bid changes while placing bid** | Atomic DB update condition fails for stale bid amount and returns HTTP 400 with updated price error. | Verified via `edge-cases-test.js` Case 7. | **PASS** |
-| **8. Multiple auctions ending simultaneously** | Socket.IO timer checks expired auctions independently and broadcasts isolated `auctionEnded` events per room. | Verified via `edge-cases-test.js` Case 8. | **PASS** |
-| **9. Invalid auction ID** | Validates ObjectId format before querying. Returns clean HTTP 400 Bad Request (`Invalid auction ID format.`). | Verified via `edge-cases-test.js` Case 9. | **PASS** |
-| **10. Server or API failure during bidding** | `bidController.js` implements atomic conditional rollback (`findOneAndUpdate`) if `Bid` document creation fails. | Verified via `edge-cases-test.js` Case 10. | **PASS** |
-| **11. No active auctions available** | `GET /api/auctions` returns empty array `[]`. `Auctions.jsx` displays friendly empty state UI. | Verified via `edge-cases-test.js` Case 11. | **PASS** |
+BidLive follows a client-server architecture built around the MERN stack. I separated the frontend, backend, database, and real-time communication so that each part has a clear responsibility.
 
----
+### Architecture Overview
 
-## ⚠️ Known Limitations
+```mermaid
+flowchart TD
+    U[Users and Admin]
+    FE[React Frontend<br/>Vite and Tailwind CSS]
+    API[Express REST API]
+    AUTH[JWT Authentication<br/>and Authorization]
+    BID[Bidding and Auction Logic]
+    DB[(MongoDB Atlas<br/>Mongoose)]
+    IO[Socket.IO Server]
+    CLIENTS[Connected Auction Clients]
 
-1. **Free-Tier Hosting Cold Start:** Free hosting (e.g. Render free tier) spins down after 15 minutes of inactivity, causing an initial 30–50 second cold-start delay on first request.
-2. **Server Timer After Restart:** The background auction expiration checker runs on a 10-second `setInterval`. If the server is offline when an auction expires, status is finalized on the next server tick upon restart.
-3. **In-Memory MongoDB Fallback:** If local MongoDB is not running, the backend falls back to `mongodb-memory-server` in RAM for testing (data resets when process stops).
-4. **No Multi-Document ACID Transactions:** Relies on single-document atomic update queries + compensation rollback because standalone MongoDB instances without replica sets do not support multi-document transactions.
-5. **Basic Role-Based Admin Auth:** Admin access relies on user document `role === 'admin'` without fine-grained permissions.
+    U --> FE
+    FE -->|HTTP Requests| API
+    API --> AUTH
+    AUTH --> BID
+    BID <--> DB
+    BID -->|Accepted Bid Events| IO
+    IO --> CLIENTS
+    CLIENTS --> FE
+```
 
----
+### Main Components
 
-## 🚀 What I Would Improve With More Time
+**1. Frontend — React, Vite and Tailwind CSS**
 
-1. **Redis Pub/Sub Adapter:** Connect Socket.IO to Redis Pub/Sub adapter to enable multi-instance horizontal scaling across multiple backend nodes.
-2. **MongoDB Replica Set & ACID Transactions:** Enable replica set configurations to use `session.startTransaction()` across `Auction` and `Bid` document writes.
-3. **Proxy Bidding (Auto-Bidding):** Implement automatic max bid ceilings where the system automatically outbids competitors up to a specified limit.
-4. **Stripe Payment Gateway:** Integrated payment checkout flow for winning bidders upon auction completion.
-5. **Email / Push Notifications:** Automated Outbid and Won Auction email notifications via Nodemailer / Web Push.
+The frontend provides the interface for browsing auctions, viewing bid history, placing bids, and tracking auction results. React components and React Router organize the application into separate pages. Socket.IO Client listens for live auction updates.
 
----
+**2. Backend — Node.js and Express.js**
 
-## 🧪 Development Demo Credentials
+The backend handles API requests, authentication, authorization, input validation, and auction operations. Controllers contain the main application logic, while routes define the API endpoints and middleware protects restricted operations.
 
-> **Notice**: Generated by `seed.js` strictly for local testing.
+**3. Database — MongoDB and Mongoose**
 
-- **Admin Account**: `admin@bidlive.com` / `admin123`
-- **User Accounts**: `user1@bidlive.com` to `user10@bidlive.com` / `user123`
+MongoDB stores users, auction details, and bid records. Mongoose defines the data models and helps validate and query the stored data. MongoDB Atlas is used for the deployed application so data persists independently of the backend process.
+
+**4. Real-Time Layer — Socket.IO**
+
+Socket.IO sends updates to clients connected to a particular auction. Auction-specific rooms keep events scoped to the relevant auction, allowing users to see accepted bids and auction-ending notifications without repeatedly refreshing the page.
+
+**5. Authentication and Authorization**
+
+JWT is used to authenticate requests from logged-in users, while bcrypt is used to hash passwords. Backend middleware checks user authentication and admin permissions before allowing protected operations.
+
+### Deployment Architecture
+
+The deployed application uses separate services for the frontend, backend, and database.
+
+| Component | Hosting | Responsibility |
+|---|---|---|
+| Frontend | Vercel | Serves the React application. |
+| Backend | Render | Runs the Express API and Socket.IO server. |
+| Database | MongoDB Atlas | Stores persistent application data. |
+
+The frontend communicates with the backend through the configured API URL. The backend connects to MongoDB Atlas using a private environment variable, rather than storing database credentials in the source code.
+
+## Technical Approach
+
+I approached the main technical challenges by keeping important business rules on the backend and validating changes against the latest database state.
+
+### 1. Bid Validation and Atomic Updates
+
+The main challenge in a multi-user auction system is ensuring that two users cannot successfully place bids based on the same outdated price.
+
+For example, suppose an auction's current bid is ₹5,000 and the minimum increment is ₹500. Two users submit ₹5,500 at nearly the same time. If both requests independently read ₹5,000 before either update is saved, a simple read-then-write implementation could accept conflicting bids.
+
+To handle this, BidLive uses MongoDB's conditional `findOneAndUpdate()` operation. The database update checks the relevant bid conditions and auction state before modifying the auction document.
+
+- The first request that satisfies the database condition updates the auction.
+- A competing request using the outdated price fails the condition.
+- The backend rejects the unsuccessful request instead of accepting a stale bid.
+
+This provides atomic protection for the single auction-document update. It does not, by itself, make the auction update and bid-history insertion one atomic multi-document transaction.
+
+### 2. Starting Price and Subsequent Bids
+
+I separated the starting-price rule from the subsequent-bidding rule.
+
+- **Before the first bid:** The minimum valid bid is based on the configured starting price.
+- **After bidding begins:** A new bid must meet the current highest bid plus the minimum increment.
+- **When an admin changes the starting price:** The current bid is synchronized with the new starting price if no bids have been placed. An existing highest bid is preserved once bidding has started.
+
+Keeping these rules on the backend prevents the frontend from being the only place where bid amounts are validated.
+
+### 3. Real-Time Synchronization
+
+I used Socket.IO so that accepted bids can be reflected across connected clients without a full page refresh.
+
+The process is:
+
+1. A user submits a bid through the REST API.
+2. The backend validates the request and attempts the database update.
+3. Once the bid is accepted and recorded, the server emits a `newBid` event to the corresponding auction room.
+4. Connected clients receive the event and update the displayed price and bid history.
+5. An `auctionEnded` event notifies clients when the backend's auction-ending logic marks an auction as ended.
+
+The frontend also uses bid identifiers to avoid rendering the same bid multiple times when duplicate events are received.
+
+### 4. Duplicate Request Handling
+
+Repeated clicks or network retries can send the same bid request more than once. To reduce duplicate records, BidLive uses a request ID to recognize repeated requests and a MongoDB unique index as an additional database safeguard.
+
+When a previously processed request is recognized, the backend can return the existing result rather than creating another bid record. The request-handling logic must also scope the request ID correctly to prevent one user's request from being mistaken for another user's request.
+
+### 5. Authentication and Role-Based Access
+
+I used JWT for authenticated API requests and bcrypt for password hashing. Authentication middleware identifies the requesting user, while admin middleware restricts auction creation and editing to users with the admin role.
+
+The frontend can hide admin-only controls from regular users, but the backend remains responsible for enforcing these permissions. This prevents access control from depending only on the interface.
+
+### 6. Error Handling and Recovery
+
+The backend handles invalid auction IDs, bids below the minimum required amount, expired auctions, and requests that no longer satisfy the current auction conditions.
+
+The bidding flow also uses compensating logic to attempt to restore the auction's previous state if creating the associated bid record fails after the auction document has been updated.
+
+This is a recovery mechanism rather than a full database transaction. A future improvement would be to use MongoDB transactions on a supported replica set so that the auction update and bid-record creation can succeed or fail together.
+
+### 7. Testing Approach
+
+I included test scripts for the main bidding and edge-case scenarios:
+
+- Concurrent bids submitted against the same auction.
+- Bids below the required minimum.
+- Attempts to bid after an auction ends.
+- Repeated requests using the same request ID.
+- Starting-price edits before and after bidding begins.
+- Invalid auction IDs and empty auction listings.
+- Frontend production-build verification.
+
+These tests are intended to check both expected behavior and failure cases. For final verification, they should be run against an isolated test database, and the actual terminal results should be checked before reporting a test as passed.
+
+## Architecture Decisions and Trade-offs
+
+| Decision | Reason | Trade-off |
+|---|---|---|
+| React frontend separated from Express backend | Keeps the UI and business logic independently organized. | Requires frontend-backend URL and CORS configuration. |
+| MongoDB for auction data | Supports flexible document models for auctions and bid history. | Multi-document consistency requires additional care. |
+| Conditional atomic database updates | Prevents competing bids from relying solely on stale application reads. | Requires careful query conditions and failure handling. |
+| Socket.IO for live updates | Provides immediate event-based updates to connected users. | Multiple backend instances require shared event coordination, such as a Redis adapter. |
+| JWT authentication and admin middleware | Protects user-specific operations and admin functionality. | Token lifecycle, secret management, and authorization still need careful handling. |
+| Vercel, Render, and MongoDB Atlas | Separates frontend hosting, API hosting, and persistent data storage. | Each service has its own configuration, availability, and deployment considerations. |
+
+## Known Limitations
+
+- The current bidding recovery mechanism is not equivalent to a multi-document ACID transaction.
+- Multiple backend instances would need shared Socket.IO event coordination.
+- Auction-ending behavior should be tested against server restarts and temporary outages.
+- Further load testing, monitoring, rate limiting, and security review would be needed before relying on the system for high-volume or monetary auctions.
+
+
+**Project:** BidLive — Real-Time Multi-Auction System  
+**Repository:** https://github.com/sapnajha757/bidlive  
+**Live Demo:** https://bidlive-gamma.vercel.app
