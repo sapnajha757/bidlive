@@ -15,16 +15,22 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/bidlive';
 // 2. Create Express App
 const app = express();
 
+const clientOrigin = process.env.CLIENT_URL ? [process.env.CLIENT_URL, 'http://localhost:5173'] : '*';
+
 // 3. Enable Middleware
-app.use(cors());
+app.use(cors({
+  origin: clientOrigin,
+  credentials: true,
+}));
 app.use(express.json());
 
 // 4. Create HTTP Server & Socket.IO Instance
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: clientOrigin,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true,
   },
 });
 
