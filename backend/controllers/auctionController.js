@@ -37,6 +37,10 @@ const getAuctions = async (req, res) => {
 // GET /api/auctions/:id - Retrieve single auction by ID
 const getAuctionById = async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid auction ID format.' });
+    }
+
     const auction = await Auction.findById(req.params.id)
       .populate('itemId')
       .populate('currentWinner', 'name email');
@@ -121,6 +125,10 @@ const createAuction = async (req, res) => {
 // PUT /api/auctions/:id - Update existing auction (Admin only)
 const updateAuction = async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid auction ID format.' });
+    }
+
     const {
       title,
       name,

@@ -10,15 +10,19 @@ const placeBid = async (req, res) => {
     const { amount, requestId } = req.body;
     const userId = req.user.id; // Always use verified token user ID
 
-    // 1. Validate input
+    // 1. Validate ObjectId and input amount
+    if (!mongoose.Types.ObjectId.isValid(auctionId)) {
+      return res.status(400).json({ message: 'Invalid auction ID format.' });
+    }
+
     const numericAmount = Number(amount);
     if (!numericAmount || isNaN(numericAmount) || numericAmount <= 0) {
       return res.status(400).json({ message: 'Invalid bid amount.' });
     }
 
-    // 2. Check for duplicate request using requestId
+    // 2. Check for duplicate request using scoped requestId
     if (requestId) {
-      const existingBid = await Bid.findOne({ requestId });
+      const existingBid = await Bid.findOne({ requestId, auctionId, userId });
       if (existingBid) {
         return res.status(200).json({
           message: 'Request already processed',
@@ -124,17 +128,24 @@ const placeBid = async (req, res) => {
       }
       newBid = await Bid.create(bidPayload);
     } catch (bidCreateError) {
-      // Revert Auction state if Bid history creation fails to maintain 100% database consistency
-      await Auction.findByIdAndUpdate(auctionId, {
-        $set: {
-          currentBid: previousBid,
-          currentWinner: previousWinner,
+      // Revert Auction state ONLY if this specific bid is still active and has not been superseded by a newer bid
+      await Auction.findOneAndUpdate(
+        {
+          _id: auctionId,
+          currentBid: numericAmount,
+          currentWinner: userId,
         },
-      });
+        {
+          $set: {
+            currentBid: previousBid,
+            currentWinner: previousWinner,
+          },
+        }
+      );
 
       // Handle duplicate key error on requestId at the database index level
       if (bidCreateError.code === 11000 && requestId) {
-        const existingBid = await Bid.findOne({ requestId });
+        const existingBid = await Bid.findOne({ requestId, auctionId, userId });
         if (existingBid) {
           return res.status(200).json({
             message: 'Request already processed',

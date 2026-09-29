@@ -242,13 +242,13 @@ async function runEdgeCaseAudit() {
       });
       const invalidData = await invalidRes.json();
 
-      if (invalidRes.status === 500 || invalidRes.status === 404) {
-        recordResult(9, 'Invalid Auction ID', 'PASS', `Handled invalid ObjectID safely with HTTP ${invalidRes.status}: "${invalidData.message}"`);
+      if (invalidRes.status === 400 && invalidData.message.includes('Invalid auction ID format')) {
+        recordResult(9, 'Invalid Auction ID Format', 'PASS', `Handled invalid ObjectId format with HTTP 400 Bad Request: "${invalidData.message}"`);
       } else {
-        recordResult(9, 'Invalid Auction ID', 'FAIL', `Status ${invalidRes.status}`);
+        recordResult(9, 'Invalid Auction ID Format', 'FAIL', `Unexpected Status ${invalidRes.status}: ${invalidData.message}`);
       }
     } catch (e) {
-      recordResult(9, 'Invalid Auction ID', 'FAIL', e.message);
+      recordResult(9, 'Invalid Auction ID Format', 'FAIL', e.message);
     }
 
     // -------------------------------------------------------------
