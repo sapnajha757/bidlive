@@ -49,14 +49,33 @@ app.get('/', (req, res) => {
   res.json({ message: 'BidLive Backend API Server is running 🚀' });
 });
 
+// Helper to safely mask credentials in database connection URI logs
+const maskUri = (uri) => {
+  if (!uri) return 'undefined';
+  return uri.replace(/\/\/(.*?)@/, '//***:***@');
+};
+
 // 7. Connect to MongoDB and Start Server
 const startServer = async () => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isExternalUri = process.env.MONGO_URI && !process.env.MONGO_URI.includes('127.0.0.1') && !process.env.MONGO_URI.includes('localhost');
+
   try {
+    console.log(`🔌 Connecting to MongoDB database at ${maskUri(MONGO_URI)}...`);
+
     try {
-      await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 2000 });
+      await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 });
       console.log('✅ Connected to MongoDB database successfully.');
     } catch (dbErr) {
-      console.log('⚠️ Local MongoDB service not found. Starting in-memory MongoDB server...');
+      console.error(`❌ MongoDB connection failed (${maskUri(MONGO_URI)}): ${dbErr.message}`);
+
+      // In production or when explicitly configured with an Atlas/external URI, fail cleanly instead of falling back to in-memory DB
+      if (isProduction || isExternalUri) {
+        console.error('❌ Refusing in-memory fallback for production/Atlas environment. Aborting startup.');
+        process.exit(1);
+      }
+
+      console.log('⚠️ Local MongoDB service not found. Starting in-memory MongoDB server for development...');
       const mongoServer = await MongoMemoryServer.create({
         instance: { port: 27017, dbName: 'bidlive' },
       });
@@ -74,6 +93,7 @@ const startServer = async () => {
     });
   } catch (err) {
     console.error('❌ Server startup error:', err.message);
+    process.exit(1);
   }
 };
 

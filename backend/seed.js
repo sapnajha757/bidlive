@@ -14,18 +14,42 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/bidlive';
 
 const seedDatabase = async () => {
   let mongoServer = null;
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isExternalUri = process.env.MONGO_URI && !process.env.MONGO_URI.includes('127.0.0.1') && !process.env.MONGO_URI.includes('localhost');
+  const maskUri = (uri) => (uri ? uri.replace(/\/\/(.*?)@/, '//***:***@') : '');
+
   try {
-    console.log('🌱 Connecting to MongoDB for seeding...');
+    console.log(`🌱 Connecting to MongoDB for seeding: ${maskUri(MONGO_URI)}...`);
     
     try {
-      await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 2000 });
-      console.log('Connected to local MongoDB database!');
+      await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 });
+      console.log('✅ Connected to MongoDB database successfully!');
     } catch (err) {
+      console.error(`❌ Connection to MongoDB failed (${maskUri(MONGO_URI)}): ${err.message}`);
+
+      if (isProduction || isExternalUri) {
+        console.error('❌ Refusing in-memory fallback for production/Atlas seeding. Aborting seed operation.');
+        process.exit(1);
+      }
+
       console.log('⚠️ Local MongoDB service not detected on port 27017.');
       console.log('🚀 Launching standalone in-memory MongoDB server for testing...');
       mongoServer = await MongoMemoryServer.create({ instance: { port: 27017 } });
       await mongoose.connect(mongoServer.getUri());
       console.log('Connected to in-memory MongoDB server!');
+    }
+
+    // Safety check: protect existing production / populated database from accidental wipes
+    const existingUsers = await User.countDocuments();
+    const existingAuctions = await Auction.countDocuments();
+    const isForce = process.argv.includes('--force');
+
+    if ((existingUsers > 0 || existingAuctions > 0) && !isForce) {
+      console.log(`ℹ️ Database already contains ${existingUsers} users and ${existingAuctions} auctions.`);
+      console.log(`⚠️ Seed aborted to protect existing database records.`);
+      console.log(`👉 To overwrite and re-seed, run: node seed.js --force`);
+      await mongoose.disconnect();
+      process.exit(0);
     }
 
     console.log('Clearing old data and syncing indexes...');
