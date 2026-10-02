@@ -5,10 +5,31 @@ const User = require('../models/User');
 // POST /api/auth/register
 const register = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, adminCode } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required.' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Please enter a valid email address.' });
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+    }
+
+    // Check if user is attempting to register as Admin
+    const userRole = role === 'admin' ? 'admin' : 'user';
+
+    if (userRole === 'admin') {
+      const expectedAdminCode = process.env.ADMIN_REGISTRATION_CODE || 'ADMIN123';
+      if (!adminCode || adminCode !== expectedAdminCode) {
+        return res.status(403).json({ message: 'Invalid Admin Registration Code. Authorization denied.' });
+      }
     }
 
     // Check if user already exists
@@ -26,7 +47,7 @@ const register = async (req, res) => {
       name,
       email: email.toLowerCase(),
       password: hashedPassword,
-      role: role === 'admin' ? 'admin' : 'user',
+      role: userRole,
     });
 
     // Create JWT token

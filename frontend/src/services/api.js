@@ -47,6 +47,7 @@ export const api = {
 
   // Auction APIs
   getAuctions: () => request('/api/auctions'),
+  getAdminStats: () => request('/api/auctions/stats'),
   getAuctionById: (id) => request(`/api/auctions/${id}`),
   createAuction: (auctionData) => request('/api/auctions', { method: 'POST', body: JSON.stringify(auctionData) }),
   updateAuction: (id, auctionData) => request(`/api/auctions/${id}`, { method: 'PUT', body: JSON.stringify(auctionData) }),

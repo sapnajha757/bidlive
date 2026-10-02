@@ -1,5 +1,8 @@
+const mongoose = require('mongoose');
 const Auction = require('../models/Auction');
 const Item = require('../models/Item');
+const User = require('../models/User');
+const Bid = require('../models/Bid');
 
 // Helper function to calculate real-time auction status based on server time
 const calculateStatus = (auction) => {
@@ -31,6 +34,35 @@ const getAuctions = async (req, res) => {
     return res.status(200).json(updatedAuctions);
   } catch (error) {
     return res.status(500).json({ message: error.message || 'Failed to fetch auctions.' });
+  }
+};
+
+// GET /api/auctions/stats - Retrieve admin dashboard statistics
+const getAdminStats = async (req, res) => {
+  try {
+    const totalUsers = await User.countDocuments();
+    const totalAuctions = await Auction.countDocuments();
+    const totalBids = await Bid.countDocuments();
+
+    const auctions = await Auction.find();
+    let activeAuctions = 0;
+    let endedAuctions = 0;
+
+    auctions.forEach((auc) => {
+      const liveStatus = calculateStatus(auc);
+      if (liveStatus === 'ACTIVE') activeAuctions++;
+      if (liveStatus === 'ENDED') endedAuctions++;
+    });
+
+    return res.status(200).json({
+      totalUsers,
+      totalAuctions,
+      activeAuctions,
+      endedAuctions,
+      totalBids,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || 'Failed to fetch admin stats.' });
   }
 };
 
@@ -190,6 +222,7 @@ const updateAuction = async (req, res) => {
 
 module.exports = {
   getAuctions,
+  getAdminStats,
   getAuctionById,
   createAuction,
   updateAuction,

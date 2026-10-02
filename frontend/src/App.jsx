@@ -51,7 +51,7 @@ export default function App() {
             <Route path="/register" element={<Register onLoginSuccess={handleLoginSuccess} />} />
             <Route path="/my-bids" element={user ? <MyBids /> : <Navigate to="/login" replace />} />
             <Route path="/my-wins" element={user ? <MyWins /> : <Navigate to="/login" replace />} />
-            <Route path="/admin" element={<Admin />} />
+            <Route path="/admin" element={user && user.role === 'admin' ? <Admin /> : <Navigate to="/" replace />} />
           </Routes>
         </main>
 

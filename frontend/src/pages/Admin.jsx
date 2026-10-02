@@ -7,7 +7,15 @@ import ErrorMessage from '../components/ErrorMessage';
 
 export default function Admin() {
   const [auctions, setAuctions] = useState([]);
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalAuctions: 0,
+    activeAuctions: 0,
+    endedAuctions: 0,
+    totalBids: 0,
+  });
   const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -33,6 +41,26 @@ export default function Admin() {
     }).format(val || 0);
   };
 
+  const fetchStats = async () => {
+    setStatsLoading(true);
+    try {
+      const data = await api.getAdminStats();
+      if (data) {
+        setStats({
+          totalUsers: data.totalUsers || 0,
+          totalAuctions: data.totalAuctions || 0,
+          activeAuctions: data.activeAuctions || 0,
+          endedAuctions: data.endedAuctions || 0,
+          totalBids: data.totalBids || 0,
+        });
+      }
+    } catch (err) {
+      console.warn('Could not fetch admin stats:', err.message);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
   const fetchAuctions = async () => {
     setLoading(true);
     setError('');
@@ -48,7 +76,6 @@ export default function Admin() {
       }
     } catch (err) {
       console.warn('Backend API error in Admin, using demo list:', err.message);
-      // Fallback demo data
       setAuctions([
         {
           _id: '1',
@@ -66,6 +93,7 @@ export default function Admin() {
   };
 
   useEffect(() => {
+    fetchStats();
     fetchAuctions();
   }, []);
 
@@ -121,8 +149,9 @@ export default function Admin() {
       });
       setEditingId(null);
 
-      // Refresh list
+      // Refresh list & stats
       fetchAuctions();
+      fetchStats();
 
       setTimeout(() => setSuccess(''), 4000);
 
@@ -163,7 +192,45 @@ export default function Admin() {
       
       <div className="mb-8 border-b border-gray-200 pb-4">
         <h1 className="text-3xl font-extrabold text-gray-900">Admin Dashboard ⚙️</h1>
-        <p className="text-sm text-gray-600 mt-1">Manage auction listings, edit prices, and create new items</p>
+        <p className="text-sm text-gray-600 mt-1">System analytics, auction management, and listing controls</p>
+      </div>
+
+      {/* Live Statistics Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
+          <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Total Users</div>
+          <div className="text-2xl font-bold text-gray-900">
+            {statsLoading ? '...' : stats.totalUsers}
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
+          <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Total Auctions</div>
+          <div className="text-2xl font-bold text-indigo-600">
+            {statsLoading ? '...' : stats.totalAuctions}
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
+          <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Active Auctions</div>
+          <div className="text-2xl font-bold text-emerald-600">
+            {statsLoading ? '...' : stats.activeAuctions}
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
+          <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Ended Auctions</div>
+          <div className="text-2xl font-bold text-amber-600">
+            {statsLoading ? '...' : stats.endedAuctions}
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs col-span-2 sm:col-span-1">
+          <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Total Bids</div>
+          <div className="text-2xl font-bold text-purple-600">
+            {statsLoading ? '...' : stats.totalBids}
+          </div>
+        </div>
       </div>
 
       {success && (
